@@ -1,0 +1,138 @@
+---
+title: "PSTAT 126 Project Step 1"
+author: "Alec Wang, Gary Han"
+date: "2023-10-22"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+# knit options
+knitr::opts_chunk$set(echo = F,
+                      results = 'markup',
+                      fig.width = 4,
+                      fig.height = 3,
+                      fig.align = 'center',
+                      message = F,
+                      warning = F)
+
+# packages
+library(knitr)
+library(tidyverse)
+library(faraway)
+library(ggplot2)
+library(skimr)
+library(readxl)
+```
+
+```{r, results='hide', echo=FALSE}
+df <- read.table("adult.data")
+df[df == "?,"] <- NA
+adult <- na.omit(df)
+colnames(adult) <- c("age", "workclass", "fnlwgt", "education", "education-num", "marital-status", "occupation", "relationship", "race", "sex", "capital-gain", "capital-loss", "hours-per-week", "native-country", "income")
+mutate(.data = adult, "age" = as.numeric("age"))
+set.seed(12345)
+adult <- adult[sample(nrow(adult), 500), ]
+adult[] <- lapply(adult, function(x) gsub(",", "", x))
+integer_cols <- c("age", "fnlwgt", "education-num", "capital-gain", "capital-loss", "hours-per-week")
+for (i in 1:length(integer_cols)){
+  adult[, integer_cols[i]] <- as.numeric(adult[, integer_cols[i]])
+}
+skim(adult)
+summary(adult)
+head(adult, 500)
+
+
+#head(adult)
+```
+
+## Introduction
+
+This dataset includes 14 parameters from 30162 adults collected during the 1994 census as predictors for whether or not income exceeds $50k/yr. We have sampled 500 entries from the dataset for analysis.  
+Below is a table detailing the 14 parameters and the response, that were collected in the census. 
+
+| Field           | Description                               |
+|-----------------|---------------------------------------------------------|
+| age             | Age in years of individual (Integer)                      |
+| workclass       | Class of work of individual (7 categories)               |
+| fnlwgt          | Number of people the entry represents (Integer)          |
+| education       | Highest level of education of individual (16 categories) |
+| education-num   | Maps each category in education to a number (Integer)    |
+| marital-status  | Marital status of individual (7 categories)              |
+| occupation      | Description of occupation (14 categories)                |
+| relationship    | Relationship of individual relative to others (6 categories) |
+| race            | Category of race of individual (5 categories)           |
+| sex             | Biological sex of individual (2 categories)              |
+| capital-gain    | Capital gain of individual (Integer)                     |
+| capital-loss    | Capital loss of individual (Integer)                     |
+| hours-per-week  | Hours worked per week by individual (Integer)           |
+| income          | Whether or not income is above $50k/yr (2 categories)   |
+
+## Summary of variables
+
+```{r, echo=F}
+#lapply(adult[integer_cols], fivenum)
+
+integer_df <- adult[integer_cols]
+five_num_sum <- lapply(integer_df, fivenum)
+five_num_sum_df <- as.data.frame(t(sapply(five_num_sum, unlist)))
+colnames(five_num_sum_df) <- c("Min", "Q1", "Median", "Q3", "Max")
+
+means <- sapply(integer_df, mean)
+five_num_sum_df$Means <- means
+kable(five_num_sum_df, caption = "Summary of Numeric Variables")
+```
+We notice that both the capital gain and capital loss data are significantly skewed right, as at least 75 percent of all entries in either set is 0. Interestingly the maximum values for capital gain seems to be capped below 100,000, which may suggest that there is some upper limit to capital gain that an individual may report. 
+
+```{r, fig.cap = "Number of people in each of the two income brackets. We can notice that only about 25% of the sample has an income greater than $50k.", echo=F}
+ggplot(data = adult, aes(x=income)) + geom_bar() + labs(x = "Income", y = "Count", title = "Distribution of Income Above or Below $50k") + theme(text = element_text(size = 10))
+```
+## Examining Relationships
+
+In the following graphs, we will examine the relationship between income and some of the categorical variables.
+
+```{r, fig.cap = "Number of people in each work class. We can see that the vast majority of sampled individuals work as employees in non-government companies. This is to be expected in a capitalist society since most people are working for each other instead of the government.", echo=F}
+ggplot(data = adult, aes(x=workclass)) + geom_bar() + labs(x = "Work Class", y = "Count", title = "Distribution of Work Class") + theme(text = element_text(size = 7))
+```
+```{r, fig.cap = "Proportion of individuals earning above $50k per year within each level of education. We noticed that there is a positive correlation between level of education and income, with the doctoral and professional school graduates having the highest proportion earning above $50k.", echo=F}
+less_50 <- subset(adult, income == "<=50K")
+education_income_ratios <- 1 - table(less_50$education)/table(adult$education)
+education_income_ratios <- rbind(education_income_ratios)
+income_ratios_df <- as.data.frame(t(as.data.frame.matrix(education_income_ratios)))
+
+#desired_order <- c(4, 5, 6, 7, 1, 2, 3, 12, 15, 9, 8, 10, 13, 14, 11)
+#ordered_values <- 1:length(desired_order)
+#ordered_row_names <- c('1st-4th', '5th-6th', '7th-8th', '9th', '10th', '11th', '12th', 'HS-grad', 'Some-college', 
+#                       'Assoc-voc', 'Assoc-acdm', 'Bachelors', 'Masters', 'Prof-school', 'Doctorate')
+#for (i in 1:length(desired_order)){
+#  ordered_values[i] <- income_ratios_df[desired_order[i], ]
+#}
+#ordered_income_ratios_df <- data.frame(cbind(ordered_row_names, ordered_values))
+#head(ordered_income_ratios_df)
+
+
+ggplot(data = income_ratios_df, aes(x = row.names(income_ratios_df), y = education_income_ratios))+ geom_bar(stat = "identity", width=0.5)+ theme(axis.text = element_text(angle = 45, size = 5), axis.title = element_text(size = 5), plot.title = element_text(size = 10)) + labs(x = "Highest Level of Education", y = "Proportion of Individuals Above $50k Income", title = "Proportion of sample >$50k given education level.")
+```
+
+```{r, fig.cap="Proportion of individuals above $50k income based on sex. There is a significantly greater proportion of males with income above $50k, which suggests that males would earn more on average (i.e. if you were a male you would have a 30% chance of making more than 50k, whereas if you were female, that chance drops to a little over 10%).", echo=F}
+sex_income_ratios <- 1 - table(less_50$sex)/table(adult$sex)
+sex_income_ratios <- rbind(sex_income_ratios)
+sex_ratios_df <- as.data.frame(t(as.data.frame.matrix(sex_income_ratios)))
+
+ggplot(data = sex_ratios_df, aes(x = row.names(sex_ratios_df), y = sex_income_ratios))+ geom_bar(stat = "identity", width=0.5)+ theme(axis.text = element_text(angle = 45, size = 5), axis.title = element_text(size = 5), plot.title = element_text(size = 10)) + labs(x = "Sex", y = "Proportion of Individuals Above $50k Income", title = "Proportion of the sexes above $50k income")
+```
+
+```{r, fig.cap="Proportion of the sample above $50k income based on race. We noticed that there was a significant proportion of American Indians and Eskimos with an income above $50k.", echo=F}
+race_income_ratios <- 1 - table(less_50$race)/table(adult$race)
+race_income_ratios <- rbind(race_income_ratios)
+race_ratios_df <- as.data.frame(t(as.data.frame.matrix(race_income_ratios)))
+
+ggplot(data = race_ratios_df, aes(x = row.names(race_ratios_df), y = race_income_ratios))+ geom_bar(stat = "identity", width=0.5)+ theme(axis.text = element_text(angle = 45, size = 5), axis.title = element_text(size = 5), plot.title = element_text(size = 7)) + labs(x = "Sex", y = "Proportion of Individuals Above $50k Income", title = "Proportion of the sample above $50k income with respect to race")
+```
+## Concluding comments
+
+The data is about what we expected, except for the statistics on income based on race. Based on data from a census published in 2001, we would have expected the income for Native Americans to be lower and the income for Asian/Pacific Islanders to be much higher. We think this discrepancy is due to either sampling variance, heavily right-skewed distributions, or the census not properly representing the population. Another possibility is that this is how the data from 1994 is actually distributed, and the distributions shifted by a significant amount in the span of 7 years.  
+The sampling of the data went well. It was the plotting that took the most amount of time, most of which was spent trying to debug `ggplot`. For the most part, we think that we had a representative sample of the population, since we took the sample out of the US census, which itself tries to be as objective as possible when gathering information. 
+
